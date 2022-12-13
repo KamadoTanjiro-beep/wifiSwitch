@@ -25,12 +25,14 @@ Aniket Patra
 #define STAPSK "YOUR_PASSWORD"  // WIFI PASSWORD
 #endif
 
-const char *ssid = pssid;      // remove "pssid" and write "STASSID"
-const char *password = ppass;  // remove "ppass" and write "STAPSK"
+const char* ssid = pssid;      // remove "pssid" and write "STASSID"
+const char* password = ppass;  // remove "ppass" and write "STAPSK"
 
 
 const char* PARAM_INPUT_1 = "output";
 const char* PARAM_INPUT_2 = "state";
+
+const String newHostname = "WiFiNode";
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -50,7 +52,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 <head>
   <title>WiFi Switch</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="data:,">
+  
   <style>
     html {font-family: Arial; display: inline-block; text-align: center;}
     h2 {font-size: 3.0rem;}
@@ -69,8 +71,8 @@ const char index_html[] PROGMEM = R"rawliteral(
   %BUTTONPLACEHOLDER%
 <script>function toggleCheckbox(element) {
   var xhr = new XMLHttpRequest();
-  if(element.checked){ xhr.open("GET", "/update?output="+element.id+"&state=1", true); }
-  else { xhr.open("GET", "/update?output="+element.id+"&state=0", true); }
+  if(element.checked){ xhr.open("GET", "/update?output="+element.id+"&state=0", true); }
+  else { xhr.open("GET", "/update?output="+element.id+"&state=1", true); }
   xhr.send();
 }
 </script>
@@ -83,7 +85,7 @@ String processor(const String& var) {
   //Serial.println(var);
   if (var == "BUTTONPLACEHOLDER") {
     String buttons = "";
-    buttons += "<label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"2\" " + outputState(2) + "><span class=\"slider\"></span></label>";
+    buttons += "<label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"4\" " + outputState(4) + "><span class=\"slider\"></span></label>";
     return buttons;
   }
   return String();
@@ -91,9 +93,9 @@ String processor(const String& var) {
 
 String outputState(int output) {
   if (digitalRead(output)) {
-    return "checked";
-  } else {
     return "";
+  } else {
+    return "checked";
   }
 }
 
@@ -101,18 +103,19 @@ void setup() {
   // Serial port for debugging purposes
   Serial.begin(115200);
 
-  pinMode(2, OUTPUT);
-  digitalWrite(2, LOW);
+  pinMode(4, OUTPUT);
+  digitalWrite(4, LOW);
 
 
   // Configures static IP address
   if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
     Serial.println("STA Failed to configure");
   }
-  
+
   // Connect to Wi-Fi network with SSID and password
   Serial.print("Connecting to ");
   Serial.println(ssid);
+  WiFi.hostname(newHostname.c_str());  // Set new hostname
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -174,5 +177,5 @@ void setup() {
 }
 
 void loop() {
-   ArduinoOTA.handle();
+  ArduinoOTA.handle();
 }
