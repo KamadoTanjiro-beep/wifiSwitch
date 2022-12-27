@@ -8,6 +8,7 @@
 
 7. You can add a RTC if required (for timer operation, as internet would be off if you use this to turn off router). Since, I used a readily available Relay Module which didn't had any RTC, I used one of my ESP in Aquarium project (I'll add link soon) to send time to this module via ESP NOW technology.
 8. It can remember the timer state using SPIFFS memory on ESP8266
+9. Supports OTA Updates
 
 Module I used:<br>
 <img src="https://robu.in/wp-content/uploads/2019/03/314748__00.jpg" alt="chikne97 wifiswitch" width="200" height="200"> <br/>
