@@ -10,11 +10,18 @@ Aniket Patra
 V0.0.2
 * It can receive time data from another ESP Node using ESP NOW protocol (since this project isn't using inbuilt RTC)
 * Receiving time was introduced as when the router is off it cannot get it's time using timeclient, hence this project uses another ESP already present in the area with a RTC like DS3231
+
 V0.0.3 20/12/2022
-*New UI
-*Added SPIFFS for offline user settings storage
+* New UI
+* Added SPIFFS for offline user settings storage
+
 V0.0.31 27/12/2022
-*bug Tuesday Spelling
+* bug Tuesday Spelling
+
+V0.0.32 
+Feature Update
+* Added wait-after-boot mode. Timer activities are disabled for 10 mins when the ESP turns ON
+* Updated timer control with better logic
 *********/
 
 // Import required libraries
@@ -49,11 +56,11 @@ const char* PARAM_INPUT_4 = "settime";
 const char* PARAM_INPUT_5 = "hour";
 const char* PARAM_INPUT_6 = "min";
 
-const String newHostname = "WiFiNode"; //Give any name that you want (would show up in router table)
+const String newHostname = "WiFiNode";  //Give any name that you want (would show up in router table)
 char week[7][20] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 
 int onTime = 0, offTime = 0;
-bool onFlag = 0, offFlag = 0;
+byte onFlag = 0, offFlag = 0;
 
 const int relay1 = 4;
 // Structure example to receive data
@@ -72,6 +79,10 @@ unsigned long timerDelay = 1000;  //1 sec
 //For reseting
 unsigned long lastTime1 = 0;
 unsigned long timerDelay1 = 600000;  //10 mins
+
+//For initial waiting
+unsigned long lastTime2 = 0;
+unsigned long timerDelay2 = 600000;  //10 mins
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -140,7 +151,7 @@ void fileReader(int count) {
   if (count == 1)
     onTime = rem.toInt();  //initialize global timer variables
   else if (count == 2)
-    offTime = rem.toInt(); //initialize global timer variables
+    offTime = rem.toInt();  //initialize global timer variables
   file.close();
 }
 
@@ -349,7 +360,8 @@ function everyTime() {
 </html>
 )rawliteral";
 
-byte flag = 0; //for router reset
+byte flag = 0;       //for router reset
+byte startFlag = 0;  //millis() rollover protection
 
 // Callback function that will be executed when data is received
 void OnDataRecv(uint8_t* mac, uint8_t* incomingData, uint8_t len) {
@@ -363,6 +375,7 @@ void setup() {
 
   pinMode(relay1, OUTPUT);
   digitalWrite(relay1, LOW);
+  offFlag = 1;
 
   bool success = SPIFFS.begin();
   SPIFFS.gc();  //garbage collection
@@ -450,7 +463,7 @@ void setup() {
       timeString = inputMessage2 + inputMessage3;
       x = inputMessage1.toInt();
       y = timeString.toInt();
-      onFlag = 1;
+      onFlag = 0;
       offFlag = 1;
     }
     if (x == 1) {
@@ -498,34 +511,56 @@ void setup() {
   // get recv packer info
   esp_now_set_self_role(ESP_NOW_ROLE_SLAVE);
   esp_now_register_recv_cb(OnDataRecv);
+  lastTime2 = millis();
+ 
 }
 
 void loop() {
+  
   ArduinoOTA.handle();
+  //when turned on or power is restored, wait for 10mins before going into any timer mode (uses timerDelay2)
+  if ((startFlag == 1) || ((millis() - lastTime2) > timerDelay2)) {
+    if ((millis() - lastTime) > timerDelay) {
 
-  if ((millis() - lastTime) > timerDelay) {
-    int hour = myData.time[0];
-    hour *= 100;
-    int min = myData.time[1];
-    hour += min;
-    int timeString = hour;
+      int hour = myData.time[0];
+      hour *= 100;
+      int min = myData.time[1];
+      hour += min;
+      int timeString = hour;
 
-    if ((onFlag == 1) && (onTime == timeString)) {
-      onFlag = 0;
-      offFlag = 1;
-      digitalWrite(relay1, LOW);
+      if (offTime > onTime)  // when off timing is greater than on timing
+      {
+        if ((timeString > onTime) && (timeString < offTime)) {
+          //on
+          onFlag = 0;
+          offFlag = 1;
+          digitalWrite(relay1, LOW);
+        } else {
+          //off
+          onFlag = 1;
+          offFlag = 0;
+          digitalWrite(relay1, HIGH);
+        }
+      } else {
+        if (((timeString > onTime) && (timeString > offTime)) || ((timeString < onTime) && (timeString < offTime))) {
+          //on
+          onFlag = 0;
+          offFlag = 1;
+          digitalWrite(relay1, LOW);
+        } else {
+          //off
+          onFlag = 1;
+          offFlag = 0;
+          digitalWrite(relay1, HIGH);
+        }
+      }
+      lastTime = millis();
     }
-    if ((offFlag == 1) && (offTime == timeString)) {
-      onFlag = 1;
-      offFlag = 0;
-      digitalWrite(relay1, HIGH);
-    }
-    lastTime = millis();
+    startFlag = 1;
   }
 
-//This checks for no internet, automatically reboots the router. Also, the flag protects from fluctuations. Say, if for a moment internet
-//is not there and flag is set to 1. No, suddenly the wifi comes back and the flag would be set to 0 by else, hence it won't let the relay to shut down.
-  if (WiFi.status() != WL_CONNECTED) {
+  /*This checks for no internet, automatically reboots the router. Used for in cases where router stucks and shows no internet
+  while ((WiFi.status() != WL_CONNECTED) && (offFlag == 1)) {
     if (flag == 0) {
       lastTime1 = millis();
       flag = 1;
@@ -536,6 +571,7 @@ void loop() {
       digitalWrite(relay1, LOW);   //ON
       lastTime1 = millis();
     }
-  } else
-    flag = 0;
+  }
+  flag = 0;*/
+  
 }
